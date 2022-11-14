@@ -2,7 +2,7 @@
 
 [Nest](https://github.com/nestjs/nest) Basic CRUD Application with Integration tests and E2E tests.
 
-This application is a basic CRUD app where users can be created and bookmarks are associated to said users. We can do different things like creating and editing users and creating/editing/deleting bookmarks as we want.
+This application is a basic CRUD app where users can be created and bookmarks are associated to said users. We can do different things like `create/edit` users and `create/edit/delete` bookmarks as we want.
 
 Built with NestJs the app is following the microservices arquitecture.
 
