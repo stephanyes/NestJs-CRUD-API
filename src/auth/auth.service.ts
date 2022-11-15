@@ -22,7 +22,7 @@ export class AuthService {
     const hash = await this.hashData(
       dto.password,
     );
-    console.log('llego aca?');
+
     try {
       const user = await this.prisma.user.create({
         data: {
