@@ -10,6 +10,8 @@ This app is inspired by freeCodeCamp's NestJs tutorial.
 
 Prisma ORM is being used to communicate with PostgreSQL and we run our different environments with Docker.
 
+JWT has been added to add more complexity to the app and make it more "secure"
+
 In order to make the app + the tests work we need to have to separate `.env` files each pointing towards their respecting postgres `URL`.
 
 For more details please check `.env.example` in the repo.
