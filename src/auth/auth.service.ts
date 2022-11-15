@@ -4,10 +4,11 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthDto } from './dto';
-import * as argon from 'argon2';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { Tokens } from './types';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class AuthService {
@@ -16,8 +17,12 @@ export class AuthService {
     private jwt: JwtService,
     private config: ConfigService,
   ) {}
-  async signup(dto: AuthDto) {
-    const hash = await argon.hash(dto.password);
+
+  async signup(dto: AuthDto): Promise<Tokens> {
+    const hash = await this.hashData(
+      dto.password,
+    );
+    console.log('llego aca?');
     try {
       const user = await this.prisma.user.create({
         data: {
@@ -25,8 +30,15 @@ export class AuthService {
           hash,
         },
       });
-
-      return this.signToken(user.id, user.email);
+      const tokens = await this.signToken(
+        user.id,
+        user.email,
+      );
+      await this.updateRefreshToken(
+        user.id,
+        tokens.refresh_token,
+      );
+      return tokens;
     } catch (error) {
       if (
         error instanceof
@@ -43,7 +55,7 @@ export class AuthService {
     }
   }
 
-  async signin(dto: AuthDto) {
+  async signin(dto: AuthDto): Promise<Tokens> {
     // find user by email
     const user =
       await this.prisma.user.findUnique({
@@ -57,10 +69,10 @@ export class AuthService {
         'Credentials incorrect :@',
       );
     }
-    //compare password
-    const pwMatches = await argon.verify(
-      user.hash,
+
+    const pwMatches = await bcrypt.compareSync(
       dto.password,
+      user.hash,
     );
     // if password incorrect throw excepion
     if (!pwMatches) {
@@ -69,30 +81,122 @@ export class AuthService {
       );
     }
 
-    // send back the user
-    return this.signToken(user.id, user.email);
+    const tokens = await this.signToken(
+      user.id,
+      user.email,
+    );
+
+    await this.updateRefreshToken(
+      user.id,
+      tokens.refresh_token,
+    );
+    return tokens;
+  }
+
+  async logout(userId: number) {
+    //get user by userId only if hashedRt not null
+    await this.prisma.user.updateMany({
+      where: {
+        id: userId,
+        hashedRt: {
+          not: null,
+        },
+      },
+      data: {
+        hashedRt: null,
+      },
+    });
+  }
+  async refreshToken(
+    userId: number,
+    refresh_token: string,
+  ) {
+    const user =
+      await this.prisma.user.findUnique({
+        where: {
+          id: userId,
+        },
+      });
+
+    if (!user) {
+      throw new ForbiddenException(
+        'Credentials incorrect :@',
+      );
+    }
+
+    //compare password
+    const hashMatches = await bcrypt.compareSync(
+      refresh_token,
+      user.hashedRt,
+    );
+
+    // if password incorrect throw excepion
+    if (!hashMatches) {
+      throw new ForbiddenException(
+        'Credentials Incorrect :@',
+      );
+    }
+
+    const tokens = await this.signToken(
+      user.id,
+      user.email,
+    );
+
+    await this.updateRefreshToken(
+      user.id,
+      tokens.refresh_token,
+    );
+    return tokens;
+  }
+
+  async hashData(data: string) {
+    const saltRounds = bcrypt.genSaltSync(10);
+    return bcrypt.hashSync(data, saltRounds);
   }
 
   async signToken(
     userId: number,
     email: string,
-  ): Promise<{ access_token: string }> {
+  ): Promise<Tokens> {
     const payload = {
       sub: userId,
       email,
     };
 
-    const secret = this.config.get('JWT_SECRET');
-    const token = await this.jwt.signAsync(
-      payload,
-      {
-        expiresIn: '15m',
-        secret: secret,
-      },
-    );
+    const [access_token, refresh_token] =
+      await Promise.all([
+        await this.jwt.signAsync(payload, {
+          expiresIn: '15m',
+          secret: this.config.get('JWT_SECRET'),
+        }),
+        await this.jwt.signAsync(payload, {
+          expiresIn: 60 * 60 * 24 * 7,
+          secret: this.config.get(
+            'REFRESH_TOKEN_SECRET',
+          ),
+        }),
+      ]);
 
     return {
-      access_token: token,
+      access_token,
+      refresh_token,
     };
+  }
+
+  async updateRefreshToken(
+    userId: number,
+    refresh_token: string,
+  ) {
+    const hash = await this.hashData(
+      refresh_token,
+    );
+    await this.prisma.user.update({
+      where: {
+        id: userId,
+      },
+      data: {
+        hashedRt: hash,
+      },
+    });
   }
 }

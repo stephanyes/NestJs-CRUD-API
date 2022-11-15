@@ -6,7 +6,7 @@ import {
 import { AppModule } from '../../../app.module';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { UserService } from '../..//user.service';
-import * as argon from 'argon2';
+import * as bcrypt from 'bcrypt';
 
 describe('UserService Int', () => {
   let prisma: PrismaService;
@@ -26,8 +26,9 @@ describe('UserService Int', () => {
 
   describe('createUser()', () => {
     it('should create user', async () => {
-      const password = await argon.hash(
+      const password = await bcrypt.hash(
         'ultrasecret',
+        10,
       );
       const dto: CreateUserDto = {
         email: 'userIntegrationTest@mail.com',

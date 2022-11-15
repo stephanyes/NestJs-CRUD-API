@@ -6,7 +6,7 @@ import {
   CreateBookmarkDto,
   EditBookmarkDto,
 } from '../../dto';
-import * as argon from 'argon2';
+import * as bcrypt from 'bcrypt';
 
 describe('BookmarkService Int', () => {
   let prisma: PrismaService;
@@ -33,8 +33,9 @@ describe('BookmarkService Int', () => {
       link: 'www.google.com',
     };
     it('should create user', async () => {
-      const hash = await argon.hash(
+      const hash = await bcrypt.hashSync(
         'ultrasecret',
+        10,
       );
       const user = await prisma.user.create({
         data: {
